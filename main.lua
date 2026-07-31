@@ -4,6 +4,7 @@ local Particles = require("particles")
 local Pickups = require("pickups")
 local Player = require("player")
 local HUD = require("hud")
+local Shield = require("shield")
 
 function _config()
 	---@type Usagi.Config
@@ -117,14 +118,38 @@ local function update_playing(dt)
 
 	for i = #Bullets.list, 1, -1 do
 		local b = Bullets.list[i]
+
 		if b.hostile then
+			-- Shield collision
+			if p.shield and p.shield.active then
+				local rsum = b.size + p.shield.radius
+
+				if (b.x - p.x) ^ 2 + (b.y - p.y) ^ 2 < rsum * rsum then
+					if Shield.hit(p.shield, b.dmg) then
+						-- NOTE: More like a barrier
+						Particles.burst(p.x + (b.x - p.x), p.y + (b.y - p.y), 10, 60, 0.3, gfx.COLOR_BLUE, 1)
+
+						-- optional: make shield impact flash
+						effect.screen_shake(0.05, 1)
+
+						table.remove(Bullets.list, i)
+					end
+
+					goto continue
+				end
+			end
+
+			-- Player collision
 			local rsum = b.size + p.r
+
 			if (b.x - p.x) ^ 2 + (b.y - p.y) ^ 2 < rsum * rsum then
 				Player.hit(p, b.dmg, S)
 				Particles.burst(b.x, b.y, 6, 30, 0.3, gfx.COLOR_RED, 1)
 				table.remove(Bullets.list, i)
 			end
 		end
+
+		::continue::
 	end
 
 	for i = #Bullets.list, 1, -1 do

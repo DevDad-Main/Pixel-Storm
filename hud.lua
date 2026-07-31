@@ -14,6 +14,20 @@ local function draw_health_bar(p)
 	gfx.rect_fill(5, 18, util.round(bw * hp_frac), 3, hc)
 end
 
+local function draw_shield_bar(p)
+	local bw = 55
+	gfx.rect(4, 21, bw + 2, 5, gfx.COLOR_DARK_GRAY)
+	local hp_frac = p.shield.hp / p.shield.max_hp
+	local hc = gfx.COLOR_YELLOW
+	if hp_frac <= 0.5 then
+		hc = gfx.COLOR_YELLOW
+	end
+	if hp_frac <= 0.25 then
+		hc = gfx.COLOR_RED
+	end
+	gfx.rect_fill(5, 22, util.round(bw * hp_frac), 3, hc)
+end
+
 local function draw_wave_text()
 	local wave_t = "WAVE: " .. State.wave
 	local ww = usagi.measure_text(wave_t)
@@ -37,6 +51,7 @@ function HUD.draw_hud(State, enemy_count)
 	draw_wave_text()
 	draw_enemies_text(enemy_count)
 	draw_health_bar(p)
+	draw_shield_bar(p)
 end
 
 function HUD.draw_ult_bar(State)
