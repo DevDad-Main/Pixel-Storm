@@ -1,4 +1,5 @@
 local Particles = require "particles"
+local Camera = require "camera"
 
 local Pickups = {}
 Pickups.list = {}
@@ -42,21 +43,24 @@ end
 
 function Pickups.draw()
   for _, pk in ipairs(Pickups.list) do
-    local x = util.round(pk.x)
-    local y = util.round(pk.y) + util.round(math.sin(pk.bob) * 1)
-    if pk.kind == "energy" then
-      gfx.px(x, y, gfx.COLOR_BLUE)
-      gfx.px(x + 1, y, gfx.COLOR_BLUE)
-      gfx.px(x - 1, y, gfx.COLOR_BLUE)
-      gfx.px(x, y + 1, gfx.COLOR_BLUE)
-      gfx.px(x, y - 1, gfx.COLOR_BLUE)
-      gfx.px(x, y, gfx.COLOR_WHITE)
-    else
-      gfx.px(x, y, gfx.COLOR_RED)
-      gfx.px(x + 1, y, gfx.COLOR_RED)
-      gfx.px(x, y + 1, gfx.COLOR_RED)
-      gfx.px(x - 1, y + 1, gfx.COLOR_RED)
-      gfx.px(x, y + 2, gfx.COLOR_RED)
+    if Camera.visible(pk.x, pk.y, 8) then
+      local x, y = Camera.world_to_screen(pk.x, pk.y)
+      x = util.round(x)
+      y = util.round(y) + util.round(math.sin(pk.bob) * 1)
+      if pk.kind == "energy" then
+        gfx.px(x, y, gfx.COLOR_BLUE)
+        gfx.px(x + 1, y, gfx.COLOR_BLUE)
+        gfx.px(x - 1, y, gfx.COLOR_BLUE)
+        gfx.px(x, y + 1, gfx.COLOR_BLUE)
+        gfx.px(x, y - 1, gfx.COLOR_BLUE)
+        gfx.px(x, y, gfx.COLOR_WHITE)
+      else
+        gfx.px(x, y, gfx.COLOR_RED)
+        gfx.px(x + 1, y, gfx.COLOR_RED)
+        gfx.px(x, y + 1, gfx.COLOR_RED)
+        gfx.px(x - 1, y + 1, gfx.COLOR_RED)
+        gfx.px(x, y + 2, gfx.COLOR_RED)
+      end
     end
   end
 end

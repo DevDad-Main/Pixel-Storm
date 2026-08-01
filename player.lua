@@ -1,12 +1,13 @@
 local Particles = require("particles")
 local Shield = require("shield")
+local Camera = require("camera")
 
 local Player = {}
 
 function Player.new()
 	return {
-		x = usagi.GAME_W / 2,
-		y = usagi.GAME_H / 2,
+		x = Camera.world_w / 2,
+		y = Camera.world_h / 2,
 		r = 3,
 		hp = 100,
 		max_hp = 100,
@@ -53,10 +54,14 @@ function Player.update(p, dt, State)
 	end
 	p.x = p.x + dx * p.speed * dt
 	p.y = p.y + dy * p.speed * dt
-	p.x = util.clamp(p.x, p.r + 1, usagi.GAME_W - p.r - 1)
-	p.y = util.clamp(p.y, p.r + 1, usagi.GAME_H - p.r - 1)
 
+	-- Clamp to the WORLD bounds, not the screen.
+	p.x = util.clamp(p.x, p.r + 1, Camera.world_w - p.r - 1)
+	p.y = util.clamp(p.y, p.r + 1, Camera.world_h - p.r - 1)
+
+	-- Mouse is in screen space; convert to world so aim matches the shot.
 	local mx, my = input.mouse()
+	mx, my = Camera.screen_to_world(mx, my)
 	p.aim = math.atan(my - p.y, mx - p.x)
 
 	if (dx ~= 0 or dy ~= 0) and p.trail_t <= 0 then
@@ -108,21 +113,26 @@ function Player.draw(p)
 	if p.invuln_t > 0 and util.flash(usagi.elapsed, 16) then
 		return
 	end
-	local x = util.round(p.x)
-	local y = util.round(p.y)
-	local bx = x + util.round(math.cos(p.aim) * 6)
-	local by = y + util.round(math.sin(p.aim) * 6)
+	local x, y = Camera.world_to_screen(p.x, p.y)
+	x = util.round(x)
+	y = util.round(y)
+	local barrel = util.round(Camera.scale(6))
+	local body = util.round(Camera.scale(3))
+	local wing = util.round(Camera.scale(3))
+
+	local bx = x + util.round(math.cos(p.aim) * barrel)
+	local by = y + util.round(math.sin(p.aim) * barrel)
 	gfx.line_ex(x, y, bx, by, 2, gfx.COLOR_LIGHT_GRAY)
-	gfx.circ_fill(x, y, 3, gfx.COLOR_GREEN)
+	gfx.circ_fill(x, y, body, gfx.COLOR_GREEN)
 	gfx.px(x, y, gfx.COLOR_WHITE)
-	local wx = util.round(math.cos(p.aim + math.pi / 2) * 3)
-	local wy = util.round(math.sin(p.aim + math.pi / 2) * 3)
+	local wx = util.round(math.cos(p.aim + math.pi / 2) * wing)
+	local wy = util.round(math.sin(p.aim + math.pi / 2) * wing)
 	gfx.px(x + wx, y + wy, gfx.COLOR_DARK_GREEN)
 	gfx.px(x - wx, y - wy, gfx.COLOR_DARK_GREEN)
 
-	--NOTE: draw shield
+	-- NOTE: draw shield
 	if p.shield and p.shield.active then
-		gfx.circ(p.x, p.y, p.shield.radius, gfx.COLOR_TRUE_WHITE)
+		gfx.circ(x, y, util.round(Camera.scale(p.shield.radius)), gfx.COLOR_TRUE_WHITE)
 	end
 end
 

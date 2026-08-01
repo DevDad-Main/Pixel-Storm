@@ -1,4 +1,5 @@
 local Particles = require "particles"
+local Camera = require "camera"
 
 local Bullets = {}
 Bullets.list = {}
@@ -29,7 +30,7 @@ function Bullets.update(dt)
       b.trail_t = 0.02
       Particles.emit({x=b.x, y=b.y, count=1, speed=4, life=0.25, color=b.color, size=1, shrink=false})
     end
-    if b.life <= 0 or b.x < -10 or b.x > usagi.GAME_W + 10 or b.y < -10 or b.y > usagi.GAME_H + 10 then
+    if b.life <= 0 or not Camera.visible(b.x, b.y, 24) then
       table.remove(list, i)
     end
   end
@@ -37,10 +38,12 @@ end
 
 function Bullets.draw()
   for _, b in ipairs(Bullets.list) do
-    local x = util.round(b.x)
-    local y = util.round(b.y)
+    local x, y = Camera.world_to_screen(b.x, b.y)
+    x = util.round(x)
+    y = util.round(y)
     if b.size > 1 then
-      gfx.rect_fill(x - b.size, y - b.size, b.size * 2, b.size * 2, b.color)
+      local s = util.round(Camera.scale(b.size))
+      gfx.rect_fill(x - s, y - s, s * 2, s * 2, b.color)
     else
       gfx.px(x, y, b.color)
       gfx.px(x, y, gfx.COLOR_WHITE)

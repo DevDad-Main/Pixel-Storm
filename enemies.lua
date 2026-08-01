@@ -2,6 +2,7 @@ local Bullets = require("bullets")
 local Particles = require("particles")
 local Player = require("player")
 local Shield = require("shield")
+local Camera = require("camera")
 
 local Enemies = {}
 Enemies.list = {}
@@ -13,31 +14,22 @@ local TYPES = {
 	tank = { hp = 8, speed = 16, r = 5, color = gfx.COLOR_DARK_PURPLE, score = 50, damage = 30 },
 }
 
+-- Spawn just outside the camera's view so enemies walk into the screen.
 local function spawn_pos()
+	local vx, vy, vw, vh = Camera.view()
+	local m = 16
 	local edge = math.random(1, 4)
 	if edge == 1 then
-		return -8, math.random(0, usagi.GAME_H)
+		return util.round(vx) - m, util.round(vy) + math.random(0, util.round(vh))
 	end
 	if edge == 2 then
-		return usagi.GAME_W + 8, math.random(0, usagi.GAME_H)
+		return util.round(vx + vw) + m, util.round(vy) + math.random(0, util.round(vh))
 	end
 	if edge == 3 then
-		return math.random(0, usagi.GAME_W), -8
+		return util.round(vx) + math.random(0, util.round(vw)), util.round(vy) - m
 	end
-	return math.random(0, usagi.GAME_W), usagi.GAME_H + 8
+	return util.round(vx) + math.random(0, util.round(vw)), util.round(vy + vh) + m
 end
-
--- TODO: with new camera bounds logic
--- local function spawn_position()
--- 	local p = State.player
-
--- 	local angle = math.random() * math.pi * 2
--- 	local distance = 180
-
--- 	return
--- 		p.x + math.cos(angle) * distance,
--- 		p.y + math.sin(angle) * distance
--- end
 
 function Enemies.spawn(kind)
 	local t = TYPES[kind]
@@ -131,26 +123,6 @@ function Enemies.update(dt, State)
 				end
 			end
 		end
-
-		-- NOTE: Old Code
-		-- if p.alive and p.invuln_t <= 0 then
-		-- 	local rsum = e.r + p.r
-		-- 	if (e.x - p.x) ^ 2 + (e.y - p.y) ^ 2 < rsum * rsum then
-		-- 		local ang = math.atan(e.y - p.y, e.x - p.x)
-		-- 		e.kx = math.cos(ang) * 40
-		-- 		e.ky = math.sin(ang) * 40
-		-- 		e.knock = 0.3
-		-- 		Enemies.hit(e, 1, nil, State)
-
-		-- 		-- TODO: Damage is hardcoded, fix this later
-		-- 		if p.shield and Shield.hit(p.shield, 20) then
-		-- 		-- shield absorbed it
-		-- 		else
-		-- 			-- NOTE: Damage is hardcoded, fix this later
-		-- 			Player.hit(p, 20, State)
-		-- 		end
-		-- 	end
-		-- end
 	end
 end
 
@@ -186,27 +158,31 @@ end
 
 function Enemies.draw()
 	for _, e in ipairs(Enemies.list) do
-		local x = util.round(e.x)
-		local y = util.round(e.y)
-		if e.kind == "chaser" then
-			gfx.circ_fill(x, y, 2, e.color)
-			gfx.px(x, y, gfx.COLOR_DARK_PURPLE)
-		elseif e.kind == "fast" then
-			gfx.rect_fill(x - 1, y - 1, 3, 3, e.color)
-			gfx.px(x, y, gfx.COLOR_ORANGE)
-		elseif e.kind == "shooter" then
-			gfx.circ_fill(x, y, 3, e.color)
-			gfx.px(x + util.round(math.cos(e.eye) * 1.5), y + util.round(math.sin(e.eye) * 1.5), gfx.COLOR_WHITE)
-		else
-			gfx.circ_fill(x, y, 5, e.color)
-			gfx.circ(x, y, 5, gfx.COLOR_DARK_BLUE)
-			gfx.px(x - 2, y - 1, gfx.COLOR_RED)
-			gfx.px(x + 2, y - 1, gfx.COLOR_RED)
-		end
-		if e.max_hp > 1 and e.hp < e.max_hp then
-			local w = e.r * 2
-			gfx.rect(x - w / 2 - 1, y - e.r - 5, w + 2, 2, gfx.COLOR_DARK_GRAY)
-			gfx.rect_fill(x - w / 2, y - e.r - 4, util.round(w * e.hp / e.max_hp), 1, gfx.COLOR_RED)
+		if Camera.visible(e.x, e.y, 24) then
+			local x, y = Camera.world_to_screen(e.x, e.y)
+			x = util.round(x)
+			y = util.round(y)
+			if e.kind == "chaser" then
+				gfx.circ_fill(x, y, util.round(Camera.scale(2)), e.color)
+				gfx.px(x, y, gfx.COLOR_DARK_PURPLE)
+			elseif e.kind == "fast" then
+				gfx.rect_fill(x - 1, y - 1, 3, 3, e.color)
+				gfx.px(x, y, gfx.COLOR_ORANGE)
+			elseif e.kind == "shooter" then
+				gfx.circ_fill(x, y, util.round(Camera.scale(3)), e.color)
+				local eye = util.round(Camera.scale(1.5))
+				gfx.px(x + util.round(math.cos(e.eye) * eye), y + util.round(math.sin(e.eye) * eye), gfx.COLOR_WHITE)
+			else
+				gfx.circ_fill(x, y, util.round(Camera.scale(5)), e.color)
+				gfx.circ(x, y, util.round(Camera.scale(5)), gfx.COLOR_DARK_BLUE)
+				gfx.px(x - 2, y - 1, gfx.COLOR_RED)
+				gfx.px(x + 2, y - 1, gfx.COLOR_RED)
+			end
+			if e.max_hp > 1 and e.hp < e.max_hp then
+				local w = util.round(Camera.scale(e.r * 2))
+				gfx.rect(x - w / 2 - 1, y - e.r - 5, w + 2, 2, gfx.COLOR_DARK_GRAY)
+				gfx.rect_fill(x - w / 2, y - e.r - 4, util.round(w * e.hp / e.max_hp), 1, gfx.COLOR_RED)
+			end
 		end
 	end
 end

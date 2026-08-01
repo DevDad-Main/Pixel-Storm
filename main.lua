@@ -7,6 +7,7 @@ local HUD = require("hud")
 local Shield = require("shield")
 local Abilities = require("abilities")
 local Camera = require("camera")
+local World = require("world")
 
 function _config()
 	---@type Usagi.Config
@@ -36,8 +37,8 @@ local function make_bolt(x0, y0, x1, y1, jag)
 	return pts
 end
 
-local function add_text(x, y, text, color, life)
-	table.insert(State.texts, { x = x, y = y, text = text, color = color, life = life, max_life = life })
+local function add_text(x, y, text, color, life, world)
+	table.insert(State.texts, { x = x, y = y, text = text, color = color, life = life, max_life = life, world = world })
 end
 
 local function start_game()
@@ -57,6 +58,8 @@ local function start_game()
 	Bullets.list = {}
 	Pickups.list = {}
 	Particles.list = {}
+	State.camera.x = State.player.x
+	State.camera.y = State.player.y
 end
 
 local function wave_budget(w)
@@ -228,6 +231,7 @@ function _init()
 			y = 0,
 			zoom = 0.65,
 		},
+		planets = World.generate(),
 	}
 	for i = 1, 40 do
 		-- State.stars[i] = {
@@ -282,7 +286,7 @@ function _init()
 	State.enemy_killed = function(e)
 		State.score = State.score + e.score
 		State.kills = State.kills + 1
-		add_text(e.x, e.y - 6, "+" .. e.score, gfx.COLOR_WHITE, 0.8)
+		add_text(e.x, e.y - 6, "+" .. e.score, gfx.COLOR_WHITE, 0.8, true)
 		if e.kind == "tank" then
 			Pickups.spawn(e.x, e.y, "heart")
 		end
@@ -362,10 +366,12 @@ local function draw_bolts()
 		local pts = b.pts
 
 		for i = 2, #pts do
-			local x1 = util.round(pts[i - 1].x)
-			local y1 = util.round(pts[i - 1].y)
-			local x2 = util.round(pts[i].x)
-			local y2 = util.round(pts[i].y)
+			local sx1, sy1 = Camera.world_to_screen(pts[i - 1].x, pts[i - 1].y)
+			local sx2, sy2 = Camera.world_to_screen(pts[i].x, pts[i].y)
+			local x1 = util.round(sx1)
+			local y1 = util.round(sy1)
+			local x2 = util.round(sx2)
+			local y2 = util.round(sy2)
 
 			-- glow fades quickly
 			gfx.line(x1, y1, x2, y2, gfx.COLOR_BLUE, a * 0.35)
@@ -417,7 +423,8 @@ local function draw_crosshair()
 	local y = util.round(my)
 	local p = State.player
 	if p.alive then
-		gfx.line(util.round(p.x), util.round(p.y), x, y, gfx.COLOR_WHITE, 0.15)
+		local px, py = Camera.world_to_screen(p.x, p.y)
+		gfx.line(util.round(px), util.round(py), x, y, gfx.COLOR_WHITE, 0.15)
 	end
 	gfx.px(x, y, gfx.COLOR_WHITE)
 	gfx.px(x + 1, y, gfx.COLOR_WHITE)
@@ -466,6 +473,7 @@ function _draw(dt)
 	if State.scene == "menu" then
 		draw_menu()
 	elseif State.scene == "playing" then
+		World.draw(State)
 		Pickups.draw()
 		Enemies.draw()
 		Player.draw(State.player)
@@ -480,6 +488,7 @@ function _draw(dt)
 
 		draw_crosshair()
 	elseif State.scene == "gameover" then
+		World.draw(State)
 		Pickups.draw()
 		Enemies.draw()
 		Bullets.draw()

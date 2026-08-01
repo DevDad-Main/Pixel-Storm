@@ -1,3 +1,5 @@
+local Camera = require("camera")
+
 local HUD = {}
 -- #region Local Methods
 local function draw_health_bar(p)
@@ -84,7 +86,11 @@ function HUD.draw_texts(State)
 	for _, t in ipairs(State.texts) do
 		local a = util.clamp(t.life / t.max_life, 0, 1)
 		local w, h = usagi.measure_text(t.text)
-		gfx.text(t.text, util.round(t.x - w / 2), util.round(t.y - h / 2), t.color, a)
+		local x, y = t.x, t.y
+		if t.world then
+			x, y = Camera.world_to_screen(t.x, t.y)
+		end
+		gfx.text(t.text, util.round(x - w / 2), util.round(y - h / 2), t.color, a)
 	end
 end
 

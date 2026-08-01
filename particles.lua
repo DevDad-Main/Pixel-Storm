@@ -57,19 +57,24 @@ function Particles.update(dt)
 end
 
 function Particles.draw()
+  local Camera = require "camera"
   local list = Particles.list
   for i = 1, #list do
     local p = list[i]
-    local a = util.clamp(p.life / p.max_life, 0, 1)
-    local s = p.size
-    if p.shrink then s = util.clamp(p.size * a, 0, p.size) end
-    local px = util.round(p.x)
-    local py = util.round(p.y)
-    if s <= 0.5 then
-      gfx.px(px, py, p.color, a)
-    else
-      local half = util.round(s)
-      gfx.rect_fill(px - half, py - half, half * 2, half * 2, p.color, a)
+    if Camera.visible(p.x, p.y, 8) then
+      local a = util.clamp(p.life / p.max_life, 0, 1)
+      local s = p.size
+      if p.shrink then s = util.clamp(p.size * a, 0, p.size) end
+      s = s * State.camera.zoom
+      local px, py = Camera.world_to_screen(p.x, p.y)
+      px = util.round(px)
+      py = util.round(py)
+      if s <= 0.5 then
+        gfx.px(px, py, p.color, a)
+      else
+        local half = util.round(s)
+        gfx.rect_fill(px - half, py - half, half * 2, half * 2, p.color, a)
+      end
     end
   end
 end
