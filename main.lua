@@ -5,10 +5,18 @@ local Pickups = require("pickups")
 local Player = require("player")
 local HUD = require("hud")
 local Shield = require("shield")
+local Abilities = require("abilities")
+local Camera = require("camera")
 
 function _config()
 	---@type Usagi.Config
-	return { name = "Pixel Storm", game_id = "dev.dad.pixelstorm", pixel_perfect = true }
+	return {
+		name = "Pixel Storm",
+		game_id = "dev.dad.pixelstorm",
+		pixel_perfect = true,
+		game_width = 640,
+		game_height = 360,
+	}
 end
 
 local function make_bolt(x0, y0, x1, y1, jag)
@@ -107,6 +115,7 @@ local function update_playing(dt)
 	end
 
 	Player.update(p, dt, S)
+	Camera.update(S, dt)
 
 	if (input.key_pressed(input.KEY_E) or input.pressed(input.BTN3)) and State.ult >= State.ult_max then
 		State.ult_strike()
@@ -214,17 +223,30 @@ function _init()
 		bolts = {},
 		saved = usagi.load() or {},
 		stars = {},
+		camera = {
+			x = 0,
+			y = 0,
+			zoom = 0.65,
+		},
 	}
 	for i = 1, 40 do
+		-- State.stars[i] = {
+		-- 	x = math.random(0, usagi.GAME_W),
+		-- 	y = math.random(0, usagi.GAME_H),
+		-- d = 0.3 + math.random() * 0.7,
+		-- }
 		State.stars[i] = {
 			x = math.random(0, usagi.GAME_W),
 			y = math.random(0, usagi.GAME_H),
-			d = 0.3 + math.random() * 0.7,
+			speed = 0.5 + math.random(),
+			size = math.random(),
 		}
 	end
 
 	State.shoot = function(p)
 		local mx, my = input.mouse()
+
+		mx, my = Camera.screen_to_world(mx, my)
 		local ang = math.atan(my - p.y, mx - p.x)
 		local bx = p.x + math.cos(ang) * 8
 		local by = p.y + math.sin(ang) * 8
@@ -248,38 +270,13 @@ function _init()
 	end
 
 	State.ult_strike = function()
-		local p = State.player
 		State.ult = 0
-		effect.slow_mo(0.5, 0.35)
+
 		effect.flash(0.4, gfx.COLOR_WHITE)
-		effect.screen_shake(0.5, 8)
+		effect.screen_shake(0.4, 6)
 		effect.hitstop(0.08)
 
-		local targets = {}
-		for _, e in ipairs(Enemies.list) do
-			targets[#targets + 1] = { x = e.x, y = e.y }
-		end
-		for i = 1, math.max(4, #targets) do
-			local tx, ty
-			if targets[i] then
-				tx, ty = targets[i].x, targets[i].y
-			else
-				tx = math.random(0, usagi.GAME_W)
-				ty = math.random(20, usagi.GAME_H)
-			end
-			State.spawn_bolt(tx + (math.random() - 0.5) * 6, -5, tx, ty, 6, 0.4)
-			Particles.burst(tx, ty, 8, 50, 0.4, gfx.COLOR_WHITE, 1)
-			Particles.burst(tx, ty, 12, 40, 0.5, gfx.COLOR_BLUE, 1)
-		end
-		for i = 1, 3 do
-			local x0 = math.random(0, usagi.GAME_W)
-			local x1 = x0 + (math.random() - 0.5) * 40
-			State.spawn_bolt(x0, -5, x1, math.random(60, usagi.GAME_H), 10, 0.3)
-		end
-
-		for j = #Enemies.list, 1, -1 do
-			Enemies.hit(Enemies.list[j], 6, nil, State)
-		end
+		Abilities.chain_lightning(State, Enemies)
 	end
 
 	State.enemy_killed = function(e)
@@ -305,7 +302,8 @@ end
 function _update(dt)
 	local S = State
 	for _, s in ipairs(S.stars) do
-		s.x = s.x - s.d * 6 * dt
+		s.x = s.x - s.speed * 5 * dt
+
 		if s.x < 0 then
 			s.x = usagi.GAME_W
 			s.y = math.random(0, usagi.GAME_H)
@@ -339,46 +337,82 @@ function _update(dt)
 end
 
 local function draw_background()
-	for x = 0, usagi.GAME_W, 16 do
-		gfx.line(x, 0, x, usagi.GAME_H, gfx.COLOR_DARK_BLUE, 0.2)
-	end
-	for y = 0, usagi.GAME_H, 16 do
-		gfx.line(0, y, usagi.GAME_W, y, gfx.COLOR_DARK_BLUE, 0.2)
-	end
+	-- NOTE: Drawn Grid logic, remove for now
+	-- for x = 0, usagi.GAME_W, 16 do
+	-- 	gfx.line(x, 0, x, usagi.GAME_H, gfx.COLOR_DARK_BLUE, 0.2)
+	-- end
+	-- for y = 0, usagi.GAME_H, 16 do
+	-- 	gfx.line(0, y, usagi.GAME_W, y, gfx.COLOR_DARK_BLUE, 0.2)
+	-- end
 	for _, s in ipairs(State.stars) do
-		gfx.px(util.round(s.x), util.round(s.y), gfx.COLOR_LIGHT_GRAY, 0.2 + s.d * 0.5)
+		gfx.px(
+			util.round(s.x),
+			util.round(s.y),
+			s.size > 0.5 and gfx.COLOR_WHITE or gfx.COLOR_LIGHT_GRAY,
+			0.3 + s.speed * 0.2
+		)
+		-- gfx.px(util.round(s.x), util.round(s.y), gfx.COLOR_LIGHT_GRAY, 0.2 + s.d * 0.5)
 	end
 end
 
 local function draw_bolts()
 	for _, b in ipairs(State.bolts) do
-		local a = util.clamp(b.life / b.max_life, 0.1, 1)
+		local a = util.clamp(b.life / b.max_life, 0, 1)
+
 		local pts = b.pts
+
 		for i = 2, #pts do
-			if math.random() < 0.8 then
-				gfx.line(
-					util.round(pts[i - 1].x),
-					util.round(pts[i - 1].y),
-					util.round(pts[i].x),
-					util.round(pts[i].y),
-					gfx.COLOR_BLUE,
-					a
-				)
-				gfx.line(
-					util.round(pts[i - 1].x),
-					util.round(pts[i - 1].y),
-					util.round(pts[i].x),
-					util.round(pts[i].y),
-					gfx.COLOR_WHITE,
-					a * 0.6
-				)
-			end
+			local x1 = util.round(pts[i - 1].x)
+			local y1 = util.round(pts[i - 1].y)
+			local x2 = util.round(pts[i].x)
+			local y2 = util.round(pts[i].y)
+
+			-- glow fades quickly
+			gfx.line(x1, y1, x2, y2, gfx.COLOR_BLUE, a * 0.35)
+
+			-- body
+			gfx.line(x1, y1, x2, y2, gfx.COLOR_YELLOW, a * 0.7)
+
+			-- core stays bright longer
+			local core = math.min(1, a * 1.5)
+
+			gfx.line(x1, y1, x2, y2, gfx.COLOR_WHITE, core)
 		end
 	end
 end
 
+-- local function draw_bolts()
+-- 	for _, b in ipairs(State.bolts) do
+-- 		local a = util.clamp(b.life / b.max_life, 0.4, 1)
+
+-- 		local pts = b.pts
+
+-- 		for i = 2, #pts do
+-- 			if math.random() < 0.8 then
+-- 				gfx.line(
+-- 					util.round(pts[i - 1].x),
+-- 					util.round(pts[i - 1].y),
+-- 					util.round(pts[i].x),
+-- 					util.round(pts[i].y),
+-- 					gfx.COLOR_WHITE,
+-- 					a
+-- 				)
+-- 				gfx.line(
+-- 					util.round(pts[i - 1].x),
+-- 					util.round(pts[i - 1].y),
+-- 					util.round(pts[i].x),
+-- 					util.round(pts[i].y),
+-- 					gfx.COLOR_WHITE,
+-- 					a
+-- 				)
+-- 			end
+-- 		end
+-- 	end
+-- end
+
 local function draw_crosshair()
 	local mx, my = input.mouse()
+	mx, my = Camera.screen_to_world(mx, my)
 	local x = util.round(mx)
 	local y = util.round(my)
 	local p = State.player
@@ -437,12 +471,14 @@ function _draw(dt)
 		Player.draw(State.player)
 		Bullets.draw()
 
-		draw_crosshair()
-
 		HUD.draw_texts(State)
 		HUD.draw_hud(State, #Enemies.list)
 		HUD.draw_ult_bar(State)
 		HUD.draw_wave_banner(State)
+
+		draw_bolts()
+
+		draw_crosshair()
 	elseif State.scene == "gameover" then
 		Pickups.draw()
 		Enemies.draw()
@@ -453,5 +489,5 @@ function _draw(dt)
 		draw_gameover()
 	end
 	Particles.draw()
-	draw_bolts()
+	-- draw_bolts()
 end

@@ -17,7 +17,7 @@ function Player.new()
 		trail_t = 0,
 		alive = true,
 		aim = 0,
-		shield = Shield.new(100, 3, 10, 15),
+		shield = Shield.new(100, 3, 10, 25),
 	}
 end
 

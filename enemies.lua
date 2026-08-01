@@ -27,6 +27,18 @@ local function spawn_pos()
 	return math.random(0, usagi.GAME_W), usagi.GAME_H + 8
 end
 
+-- TODO: with new camera bounds logic
+-- local function spawn_position()
+-- 	local p = State.player
+
+-- 	local angle = math.random() * math.pi * 2
+-- 	local distance = 180
+
+-- 	return
+-- 		p.x + math.cos(angle) * distance,
+-- 		p.y + math.sin(angle) * distance
+-- end
+
 function Enemies.spawn(kind)
 	local t = TYPES[kind]
 	local x, y = spawn_pos()
