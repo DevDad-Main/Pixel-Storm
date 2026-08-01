@@ -1,5 +1,6 @@
 local Particles = require "particles"
 local Camera = require "camera"
+local World = require "world"
 
 local Pickups = {}
 Pickups.list = {}
@@ -37,6 +38,9 @@ function Pickups.update(dt, State)
         end
         table.remove(Pickups.list, i)
       end
+    else
+      -- Planets are solid; pickups settle on their surface.
+      pk.x, pk.y = World.resolve(pk.x, pk.y, 2)
     end
   end
 end

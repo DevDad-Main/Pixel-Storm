@@ -1,5 +1,6 @@
 local Particles = require "particles"
 local Camera = require "camera"
+local World = require "world"
 
 local Bullets = {}
 Bullets.list = {}
@@ -30,7 +31,10 @@ function Bullets.update(dt)
       b.trail_t = 0.02
       Particles.emit({x=b.x, y=b.y, count=1, speed=4, life=0.25, color=b.color, size=1, shrink=false})
     end
-    if b.life <= 0 or not Camera.visible(b.x, b.y, 24) then
+    if World.hits(b.x, b.y, b.size) then
+      Particles.burst(b.x, b.y, 5, 40, 0.25, gfx.COLOR_ORANGE, 1)
+      table.remove(list, i)
+    elseif b.life <= 0 or not Camera.visible(b.x, b.y, 24) then
       table.remove(list, i)
     end
   end

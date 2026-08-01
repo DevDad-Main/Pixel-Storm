@@ -15,8 +15,8 @@ function _config()
 		name = "Pixel Storm",
 		game_id = "dev.dad.pixelstorm",
 		pixel_perfect = true,
-		game_width = 640,
-		game_height = 360,
+		game_width = 960,
+		game_height = 540,
 	}
 end
 
@@ -229,7 +229,7 @@ function _init()
 		camera = {
 			x = 0,
 			y = 0,
-			zoom = 0.65,
+			zoom = 1.0,
 		},
 		planets = World.generate(),
 	}
@@ -254,7 +254,7 @@ function _init()
 		local ang = math.atan(my - p.y, mx - p.x)
 		local bx = p.x + math.cos(ang) * 8
 		local by = p.y + math.sin(ang) * 8
-		Bullets.spawn(bx, by, ang, 220, false, gfx.COLOR_YELLOW, 1, 1, 0.9)
+		Bullets.spawn(bx, by, ang, 330, false, gfx.COLOR_YELLOW, 1, 1, 0.9)
 		Particles.spray(bx, by, ang, 0.4, 2, 50, 0.12, gfx.COLOR_ORANGE, 1)
 	end
 
@@ -262,7 +262,7 @@ function _init()
 		local p = State.player
 		local ang = math.atan(p.y - e.y, p.x - e.x)
 		Particles.burst(e.x + math.cos(ang) * 4, e.y + math.sin(ang) * 4, 4, 20, 0.2, gfx.COLOR_BLUE, 1)
-		Bullets.spawn(e.x, e.y, ang, 70, true, gfx.COLOR_RED, 15, 2, 3.0)
+		Bullets.spawn(e.x, e.y, ang, 105, true, gfx.COLOR_RED, 15, 2, 3.0)
 	end
 
 	State.spawn_bolt = function(x0, y0, x1, y1, jag, life)
@@ -418,7 +418,6 @@ end
 
 local function draw_crosshair()
 	local mx, my = input.mouse()
-	mx, my = Camera.screen_to_world(mx, my)
 	local x = util.round(mx)
 	local y = util.round(my)
 	local p = State.player

@@ -16,7 +16,7 @@ function Camera.update(State, dt)
 
 	-- Frame-rate independent smooth follow. t goes 0 -> 1 fast at first,
 	-- then eases: cam moves most of the remaining distance each frame.
-	local t = 1 - math.pow(0.001, dt)
+	local t = 1 - 0.001 ^ dt
 	cam.x = util.lerp(cam.x, p.x, t)
 	cam.y = util.lerp(cam.y, p.y, t)
 

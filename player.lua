@@ -1,6 +1,7 @@
 local Particles = require("particles")
 local Shield = require("shield")
 local Camera = require("camera")
+local World = require("world")
 
 local Player = {}
 
@@ -11,7 +12,7 @@ function Player.new()
 		r = 3,
 		hp = 100,
 		max_hp = 100,
-		speed = 95,
+		speed = 142,
 		fire_t = 0,
 		fire_rate = 0.13,
 		invuln_t = 0,
@@ -58,6 +59,9 @@ function Player.update(p, dt, State)
 	-- Clamp to the WORLD bounds, not the screen.
 	p.x = util.clamp(p.x, p.r + 1, Camera.world_w - p.r - 1)
 	p.y = util.clamp(p.y, p.r + 1, Camera.world_h - p.r - 1)
+
+	-- Planets are solid; slide along their surface.
+	p.x, p.y = World.resolve(p.x, p.y, p.r)
 
 	-- Mouse is in screen space; convert to world so aim matches the shot.
 	local mx, my = input.mouse()

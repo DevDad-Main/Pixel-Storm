@@ -3,15 +3,16 @@ local Particles = require("particles")
 local Player = require("player")
 local Shield = require("shield")
 local Camera = require("camera")
+local World = require("world")
 
 local Enemies = {}
 Enemies.list = {}
 
 local TYPES = {
-	chaser = { hp = 1, speed = 42, r = 2.5, color = gfx.COLOR_PINK, score = 10, damage = 10 },
-	fast = { hp = 1, speed = 80, r = 1.5, color = gfx.COLOR_YELLOW, score = 20, damage = 20 },
-	shooter = { hp = 2, speed = 28, r = 3, color = gfx.COLOR_BLUE, score = 25, damage = 25 },
-	tank = { hp = 8, speed = 16, r = 5, color = gfx.COLOR_DARK_PURPLE, score = 50, damage = 30 },
+	chaser = { hp = 1, speed = 63, r = 2.5, color = gfx.COLOR_PINK, score = 10, damage = 10 },
+	fast = { hp = 1, speed = 120, r = 1.5, color = gfx.COLOR_YELLOW, score = 20, damage = 20 },
+	shooter = { hp = 2, speed = 42, r = 3, color = gfx.COLOR_BLUE, score = 25, damage = 25 },
+	tank = { hp = 8, speed = 24, r = 5, color = gfx.COLOR_DARK_PURPLE, score = 50, damage = 30 },
 }
 
 -- Spawn just outside the camera's view so enemies walk into the screen.
@@ -84,12 +85,12 @@ function Enemies.update(dt, State)
 			vx = vx - ny * w
 			vy = vy + nx * w
 		elseif e.kind == "shooter" then
-			local target = 48
+			local target = 72
 			local mv = util.clamp((dist - target) / target, -1, 1) * sp
 			vx = nx * mv * 1.4 - ny * math.sin(e.phase) * 14
 			vy = ny * mv * 1.4 + nx * math.sin(e.phase) * 14
 			e.fire_t = e.fire_t - dt
-			if e.fire_t <= 0 and dist < 130 then
+			if e.fire_t <= 0 and dist < 195 then
 				e.fire_t = 2.2
 				State.enemy_shoot(e)
 			end
@@ -97,6 +98,9 @@ function Enemies.update(dt, State)
 
 		e.x = e.x + vx * dt
 		e.y = e.y + vy * dt
+
+		-- Planets are solid; enemies slide around them.
+		e.x, e.y = World.resolve(e.x, e.y, e.r)
 
 		e.trail_t = e.trail_t - dt
 		if e.trail_t <= 0 then
