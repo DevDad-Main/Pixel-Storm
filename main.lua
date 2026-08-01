@@ -501,9 +501,11 @@ function _draw(dt)
 		Enemies.draw()
 		Player.draw(State.player)
 		Bullets.draw()
+		Drone.draw(State.build)
 
 		HUD.draw_texts(State)
 		HUD.draw_hud(State, #Enemies.list)
+		HUD.draw_weapon(State)
 		HUD.draw_ult_bar(State)
 		HUD.draw_wave_banner(State)
 

@@ -17,8 +17,16 @@ function Camera.update(State, dt)
 	-- Frame-rate independent smooth follow. t goes 0 -> 1 fast at first,
 	-- then eases: cam moves most of the remaining distance each frame.
 	local t = 1 - 0.001 ^ dt
-	cam.x = util.lerp(cam.x, p.x, t)
-	cam.y = util.lerp(cam.y, p.y, t)
+
+	-- Mouse look-ahead: drift the camera toward the cursor. The further the
+	-- cursor is from the screen center, the more the view leans that way.
+	local mx, my = input.mouse()
+	local max_look = 55 -- world px of total shift
+	local lx = util.clamp((mx - usagi.GAME_W / 2) / cam.zoom * 0.25, -max_look, max_look)
+	local ly = util.clamp((my - usagi.GAME_H / 2) / cam.zoom * 0.25, -max_look, max_look)
+
+	cam.x = util.lerp(cam.x, p.x + lx, t)
+	cam.y = util.lerp(cam.y, p.y + ly, t)
 
 	-- Clamp so the view never shows outside the world. If the world is
 	-- smaller than the screen on an axis, center that axis instead.

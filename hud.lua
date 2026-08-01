@@ -1,4 +1,5 @@
 local Camera = require("camera")
+local Weapons = require("weapons")
 
 local HUD = {}
 -- #region Local Methods
@@ -41,6 +42,7 @@ local function draw_enemies_text(enemy_count)
 	local lw = usagi.measure_text(left_t)
 	gfx.text(left_t, usagi.GAME_W - 4 - lw, 15, gfx.COLOR_DARK_GRAY)
 end
+
 -- #endregion
 
 function HUD.draw_hud(State, enemy_count)
@@ -97,6 +99,34 @@ end
 function HUD.centered(text, y, color, alpha)
 	local w, h = usagi.measure_text(text)
 	gfx.text(text, util.round((usagi.GAME_W - w) / 2), y, color, alpha)
+end
+
+function HUD.draw_weapon(State)
+	local build = State.build
+	local n = #build.weapons
+	if n == 0 then
+		return
+	end
+	local idx = build.weapon_index
+	local x, y = 4, 30
+	if n > 1 then
+		local prev = idx - 1
+		if prev < 1 then
+			prev = n
+		end
+		gfx.text(Weapons.DEF[build.weapons[prev]].name, x, y, gfx.COLOR_DARK_GRAY)
+	end
+	local def = Weapons.DEF[build.weapons[idx]]
+	local level = build.weapon_levels[build.weapons[idx]] or 1
+	gfx.rect_fill(x, y + 13, 6, 6, def.color)
+	gfx.text(def.name .. " Lv " .. level, x + 9, y + 10, gfx.COLOR_WHITE)
+	if n > 1 then
+		local nextw = idx + 1
+		if nextw > n then
+			nextw = 1
+		end
+		gfx.text(Weapons.DEF[build.weapons[nextw]].name, x, y + 20, gfx.COLOR_DARK_GRAY)
+	end
 end
 
 return HUD

@@ -10,7 +10,7 @@ function Drone.add(build, State)
 		build.drone_level = (build.drone_level or 1) + 1
 	else
 		table.insert(build.drones, {
-			angle = math.random * math.pi * 2,
+			angle = math.random() * math.pi * 2,
 			orbit = 28,
 			speed = 1.6,
 			fire_t = 1,
