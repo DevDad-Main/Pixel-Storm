@@ -8,6 +8,10 @@ local Shield = require("shield")
 local Abilities = require("abilities")
 local Camera = require("camera")
 local World = require("world")
+local Build = require("build")
+local Weapons = require("weapons")
+local Drone = require("drone")
+local Draft = require("draft")
 
 function _config()
 	---@type Usagi.Config
@@ -43,6 +47,8 @@ end
 
 local function start_game()
 	State.scene = "playing"
+	State.build = Build.new()
+	State.draft = nil
 	State.player = Player.new()
 	State.score = 0
 	State.wave = 0
@@ -128,6 +134,21 @@ local function update_playing(dt)
 		Pickups.spawn(p.x - 15, p.y - 15, "energy")
 	end
 
+	-- Weapon switching: keys 1-3 and the scroll wheel.
+	if input.key_pressed(input.KEY_1) then
+		Weapons.select(S.build, 1)
+	elseif input.key_pressed(input.KEY_2) then
+		Weapons.select(S.build, 2)
+	elseif input.key_pressed(input.KEY_3) then
+		Weapons.select(S.build, 3)
+	end
+	local scroll = input.mouse_scroll()
+	if scroll > 0 then
+		Weapons.cycle(S.build, 1)
+	elseif scroll < 0 then
+		Weapons.cycle(S.build, -1)
+	end
+
 	for i = #Bullets.list, 1, -1 do
 		local b = Bullets.list[i]
 
@@ -170,11 +191,18 @@ local function update_playing(dt)
 			local hit = false
 			for j = #Enemies.list, 1, -1 do
 				local e = Enemies.list[j]
-				local rsum = b.size + e.r
-				if (b.x - e.x) ^ 2 + (b.y - e.y) ^ 2 < rsum * rsum then
-					Enemies.hit(e, b.dmg, b, S)
-					hit = true
-					break
+				if not b.hit[e] then
+					local rsum = b.size + e.r
+					if (b.x - e.x) ^ 2 + (b.y - e.y) ^ 2 < rsum * rsum then
+						Enemies.hit(e, b.dmg, b, S)
+						b.hit[e] = true
+						if b.pierce > 0 then
+							b.pierce = b.pierce - 1
+						else
+							hit = true
+							break
+						end
+					end
 				end
 			end
 			if hit then
@@ -186,6 +214,7 @@ local function update_playing(dt)
 	Bullets.update(dt)
 	Enemies.update(dt, S)
 	Pickups.update(dt, S)
+	Drone.update(S.build, dt, S)
 
 	if S.spawn_left > 0 and S.break_t <= 0 then
 		S.spawn_t = S.spawn_t - dt
@@ -198,10 +227,7 @@ local function update_playing(dt)
 	end
 
 	if S.spawn_left == 0 and #Enemies.list == 0 and S.break_t <= 0 then
-		S.break_t = 2.2
-		p.hp = math.min(p.max_hp, p.hp + 15)
-		add_text(usagi.GAME_W / 2, 50, "WAVE CLEAR", gfx.COLOR_GREEN, 1.4)
-		add_text(usagi.GAME_W / 2, 62, "+15 HP", gfx.COLOR_RED, 1.4)
+		Draft.start(S)
 	end
 end
 
@@ -232,6 +258,7 @@ function _init()
 			zoom = 1.0,
 		},
 		planets = World.generate(),
+		build = Build.new(),
 	}
 	for i = 1, 40 do
 		-- State.stars[i] = {
@@ -245,17 +272,6 @@ function _init()
 			speed = 0.5 + math.random(),
 			size = math.random(),
 		}
-	end
-
-	State.shoot = function(p)
-		local mx, my = input.mouse()
-
-		mx, my = Camera.screen_to_world(mx, my)
-		local ang = math.atan(my - p.y, mx - p.x)
-		local bx = p.x + math.cos(ang) * 8
-		local by = p.y + math.sin(ang) * 8
-		Bullets.spawn(bx, by, ang, 330, false, gfx.COLOR_YELLOW, 1, 1, 0.9)
-		Particles.spray(bx, by, ang, 0.4, 2, 50, 0.12, gfx.COLOR_ORANGE, 1)
 	end
 
 	State.enemy_shoot = function(e)
@@ -323,6 +339,14 @@ function _update(dt)
 
 	if S.scene == "playing" then
 		update_playing(dt)
+	elseif S.scene == "draft" then
+		local card = Draft.update(S)
+		if card then
+			card.apply(S.build, S)
+			S.draft = nil
+			S.scene = "playing"
+			next_wave()
+		end
 	elseif S.scene == "menu" or S.scene == "gameover" then
 		if input.pressed(input.BTN1) then
 			start_game()
@@ -486,6 +510,15 @@ function _draw(dt)
 		draw_bolts()
 
 		draw_crosshair()
+	elseif State.scene == "draft" then
+		World.draw(State)
+		Pickups.draw()
+		Enemies.draw()
+		Player.draw(State.player)
+		Bullets.draw()
+		Drone.draw(State.build)
+		HUD.draw_texts(State)
+		Draft.draw(State)
 	elseif State.scene == "gameover" then
 		World.draw(State)
 		Pickups.draw()

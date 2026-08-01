@@ -2,6 +2,7 @@ local Particles = require("particles")
 local Shield = require("shield")
 local Camera = require("camera")
 local World = require("world")
+local Weapons = require("weapons")
 
 local Player = {}
 
@@ -14,7 +15,8 @@ function Player.new()
 		max_hp = 100,
 		speed = 142,
 		fire_t = 0,
-		fire_rate = 0.13,
+		-- NOTE: now dynamic from the Build module
+		-- fire_rate = 0.13,
 		invuln_t = 0,
 		trail_t = 0,
 		alive = true,
@@ -53,8 +55,10 @@ function Player.update(p, dt, State)
 		dx = dx / len
 		dy = dy / len
 	end
-	p.x = p.x + dx * p.speed * dt
-	p.y = p.y + dy * p.speed * dt
+
+	-- NOTE: Player movement updated to incorporate build stats
+	p.x = p.x + dx * p.speed * State.build.stats.move_speed * dt
+	p.y = p.y + dy * p.speed * State.build.stats.move_speed * dt
 
 	-- Clamp to the WORLD bounds, not the screen.
 	p.x = util.clamp(p.x, p.r + 1, Camera.world_w - p.r - 1)
@@ -82,10 +86,17 @@ function Player.update(p, dt, State)
 		})
 	end
 
+	local w = Weapons.resolve(State.build)
 	if input.mouse_held(input.MOUSE_LEFT) and p.fire_t <= 0 then
-		p.fire_t = p.fire_rate
-		State.shoot(p)
+		p.fire_t = w.fire_rate
+		Weapons.fire(p, State.build, State, w)
 	end
+
+	-- NOTE: Old firing logic, hard coded
+	-- if input.mouse_held(input.MOUSE_LEFT) and p.fire_t <= 0 then
+	-- 	p.fire_t = p.fire_rate
+	-- 	State.shoot(p)
+	-- end
 end
 
 function Player.hit(p, dmg, State)
