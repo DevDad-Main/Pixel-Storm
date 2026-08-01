@@ -37,7 +37,7 @@ function Bullets.update(dt)
 		if World.hits(b.x, b.y, b.size) then
 			Particles.burst(b.x, b.y, 5, 40, 0.25, gfx.COLOR_ORANGE, 1)
 			table.remove(list, i)
-		elseif b.life <= 0 or not Camera.visible(b.x, b.y, 24) then
+		elseif b.life <= 0 or not Camera.visible(b.x, b.y, 80) then
 			table.remove(list, i)
 		end
 	end

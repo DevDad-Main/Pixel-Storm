@@ -42,7 +42,7 @@ function Drone.update(build, dt, State)
 			if target then
 				local ang = math.atan(target.y - d.y, target.x - d.x)
 				local dmg = 0.6 * build.stats.damage * level
-				Bullets.spawn(d.x, d.y, ang, 300, false, gfx.COLOR_INDIGO, dmg, 1, 0.9)
+				Bullets.spawn(d.x, d.y, ang, 300, false, gfx.COLOR_INDIGO, dmg, 1, 2.8)
 			end
 		end
 	end

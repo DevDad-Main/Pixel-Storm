@@ -77,7 +77,7 @@ function Weapons.fire(player, build, State, w)
 		local ang = base + offset * w.spread * 2 + (math.random() - 0.5) * 0.02
 		local bx = player.x + math.cos(ang) * 8
 		local by = player.y + math.sin(ang) * 8
-		Bullets.spawn(bx, by, ang, w.bullet_speed, false, w.color, w.damage, 1, 0.9, w.pierce)
+		Bullets.spawn(bx, by, ang, w.bullet_speed, false, w.color, w.damage, 1, 2.8, w.pierce)
 		Particles.spray(bx, by, ang, 0.4, 2, 50, 0.12, gfx.COLOR_ORANGE, 1)
 	end
 end

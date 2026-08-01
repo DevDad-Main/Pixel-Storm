@@ -68,8 +68,8 @@ function Draft.draw(State)
 	end
 
 	HUD.centered("CHOOSE AN UPGRADE", 36, gfx.COLOR_YELLOW)
-	HUD.centered("WAVE " .. (State.wave + 1) .. " APPROACHING", 52, gfx.COLOR_WHITE)
-	HUD.centered("Left/Right or 1-3 to select - Space/Click to take", usagi.GAME_H - 16, gfx.COLOR_LIGHT_GRAY)
+	HUD.centered("WAVE " .. (State.wave + 1) .. " APPROACHING", 68, gfx.COLOR_WHITE)
+	HUD.centered("Left/Right or 1-3 to select - Space/Click to take", usagi.GAME_H - 44, gfx.COLOR_LIGHT_GRAY)
 end
 
 return Draft

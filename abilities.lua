@@ -13,7 +13,10 @@ function Abilities.chain_lightning(State, Enemies)
 
 	local damage = 6
 	local jumps = 6
-	local range = 70
+	-- First hop must reach anything on screen; follow-up hops bridge gaps
+	-- between nearby enemies so the chain keeps bouncing.
+	local first_range = 520
+	local chain_range = 300
 
 	local hit = {}
 
@@ -24,7 +27,7 @@ function Abilities.chain_lightning(State, Enemies)
 
 	for i = 1, jumps do
 		local target = nil
-		local closest = range
+		local closest = i == 1 and first_range or chain_range
 		for _, e in ipairs(Enemies.list) do
 			if not hit[e] then
 				local d = distance(current, e)

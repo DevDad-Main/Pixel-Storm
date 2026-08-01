@@ -459,35 +459,35 @@ end
 local function draw_menu()
 	local S = State
 	HUD.centered("PIXEL STORM", 36, gfx.COLOR_GREEN)
-	HUD.centered("a twin-stick pixel arena", 50, gfx.COLOR_LIGHT_GRAY)
-	gfx.text("WASD / arrows   move", 10, 96, gfx.COLOR_DARK_GRAY)
-	gfx.text("mouse   aim", 10, 106, gfx.COLOR_DARK_GRAY)
-	gfx.text("hold click   fire", 10, 116, gfx.COLOR_DARK_GRAY)
-	gfx.text("E    Lightning Storm", 10, 126, gfx.COLOR_DARK_GRAY)
+	HUD.centered("a twin-stick pixel arena", 68, gfx.COLOR_LIGHT_GRAY)
+	HUD.text("WASD / arrows   move", 10, 110, gfx.COLOR_DARK_GRAY)
+	HUD.text("mouse   aim", 10, 142, gfx.COLOR_DARK_GRAY)
+	HUD.text("hold click   fire", 10, 174, gfx.COLOR_DARK_GRAY)
+	HUD.text("E    Lightning Storm", 10, 206, gfx.COLOR_DARK_GRAY)
 	local btn = input.mapping_for(input.BTN1) or "Z"
 	local prompt = "Press " .. btn .. " to start"
 	local blink = util.flash(usagi.elapsed, 2) and gfx.COLOR_WHITE or gfx.COLOR_DARK_GRAY
-	HUD.centered(prompt, 140, blink)
+	HUD.centered(prompt, 246, blink)
 	if S.saved.high and S.saved.high > 0 then
-		gfx.text("HIGH SCORE: " .. S.saved.high, 4, 3, gfx.COLOR_YELLOW)
+		HUD.text("HIGH SCORE: " .. S.saved.high, 4, 4, gfx.COLOR_YELLOW)
 	end
 end
 
 local function draw_gameover()
 	local S = State
 	HUD.centered("GAME OVER", 40, gfx.COLOR_RED)
-	HUD.centered("SCORE: " .. S.score, 58, gfx.COLOR_WHITE)
+	HUD.centered("SCORE: " .. S.score, 72, gfx.COLOR_WHITE)
 	if S.score >= (S.saved.high or 0) and S.score > 0 then
-		HUD.centered("NEW HIGH SCORE!", 72, gfx.COLOR_YELLOW)
+		HUD.centered("NEW HIGH SCORE!", 104, gfx.COLOR_YELLOW)
 	else
-		HUD.centered("HIGH SCORE: " .. (S.saved.high or 0), 72, gfx.COLOR_YELLOW)
+		HUD.centered("HIGH SCORE: " .. (S.saved.high or 0), 104, gfx.COLOR_YELLOW)
 	end
-	HUD.centered("WAVES SURVIVED: " .. S.wave, 86, gfx.COLOR_LIGHT_GRAY)
-	HUD.centered("KILLS: " .. S.kills, 98, gfx.COLOR_LIGHT_GRAY)
+	HUD.centered("WAVES SURVIVED: " .. S.wave, 136, gfx.COLOR_LIGHT_GRAY)
+	HUD.centered("KILLS: " .. S.kills, 168, gfx.COLOR_LIGHT_GRAY)
 	local btn = input.mapping_for(input.BTN1) or "Z"
 	local prompt = "Press " .. btn .. " to restart"
 	local blink = util.flash(usagi.elapsed, 2) and gfx.COLOR_WHITE or gfx.COLOR_DARK_GRAY
-	HUD.centered(prompt, 122, blink)
+	HUD.centered(prompt, 210, blink)
 end
 
 function _draw(dt)
