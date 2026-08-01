@@ -21,6 +21,7 @@ function _config()
 		pixel_perfect = true,
 		game_width = 960,
 		game_height = 540,
+		pause_menu = false, -- custom pause overlay drawn at HUD scale
 	}
 end
 
@@ -59,7 +60,9 @@ local function start_game()
 	State.break_t = 1.2
 	State.death_t = 0
 	State.ult = 0
+	State.ult_max = 100
 	State.bolts = {}
+	State.paused = false
 	Enemies.list = {}
 	Bullets.list = {}
 	Pickups.list = {}
@@ -88,6 +91,13 @@ local function wave_kinds(w)
 	end
 	if w >= 6 then
 		kinds[#kinds + 1] = "tank"
+	end
+	if w >= 5 and w % 5 == 0 then
+		kinds[#kinds + 1] = "boss"
+	end
+
+	if w >= 10 and w % 10 == 0 then
+		kinds[#kinds + 1] = "bigboss"
 	end
 	return kinds
 end
@@ -192,8 +202,15 @@ local function update_playing(dt)
 			for j = #Enemies.list, 1, -1 do
 				local e = Enemies.list[j]
 				if not b.hit[e] then
+					-- Segment check from the bullet's previous to current
+					-- position so fast bullets don't skip over small enemies.
+					local px, py = b.px or b.x, b.py or b.y
+					local vx, vy = b.x - px, b.y - py
+					local len2 = vx * vx + vy * vy
+					local t = len2 > 0 and util.clamp(((e.x - px) * vx + (e.y - py) * vy) / len2, 0, 1) or 0
+					local cx, cy = px + vx * t, py + vy * t
 					local rsum = b.size + e.r
-					if (b.x - e.x) ^ 2 + (b.y - e.y) ^ 2 < rsum * rsum then
+					if (e.x - cx) ^ 2 + (e.y - cy) ^ 2 < rsum * rsum then
 						Enemies.hit(e, b.dmg, b, S)
 						b.hit[e] = true
 						if b.pierce > 0 then
@@ -321,6 +338,23 @@ end
 
 function _update(dt)
 	local S = State
+
+	if S.scene == "playing" then
+		local toggle = input.key_pressed(input.KEY_ESCAPE) or input.key_pressed(input.KEY_P)
+		if S.paused then
+			if toggle then
+				S.paused = false
+			elseif input.key_pressed(input.KEY_Q) then
+				usagi.quit()
+			end
+			return
+		end
+		if toggle then
+			S.paused = true
+			return
+		end
+	end
+
 	for _, s in ipairs(S.stars) do
 		s.x = s.x - s.speed * 5 * dt
 
@@ -512,6 +546,13 @@ function _draw(dt)
 		draw_bolts()
 
 		draw_crosshair()
+
+		if State.paused then
+			gfx.rect_fill(0, 0, usagi.GAME_W, usagi.GAME_H, gfx.COLOR_BLACK, 0.65)
+			HUD.centered("PAUSED", 200, gfx.COLOR_WHITE)
+			HUD.centered("ESC / P - resume", 240, gfx.COLOR_LIGHT_GRAY)
+			HUD.centered("Q - quit", 272, gfx.COLOR_DARK_GRAY)
+		end
 	elseif State.scene == "draft" then
 		World.draw(State)
 		Pickups.draw()

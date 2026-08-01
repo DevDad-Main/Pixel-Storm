@@ -9,6 +9,8 @@ function Bullets.spawn(x, y, angle, speed, hostile, color, dmg, size, life, pier
 	table.insert(Bullets.list, {
 		x = x,
 		y = y,
+		px = x,
+		py = y,
 		vx = math.cos(angle) * speed,
 		vy = math.sin(angle) * speed,
 		hostile = hostile,
@@ -26,6 +28,8 @@ function Bullets.update(dt)
 	local list = Bullets.list
 	for i = #list, 1, -1 do
 		local b = list[i]
+		b.px = b.x
+		b.py = b.y
 		b.life = b.life - dt
 		b.x = b.x + b.vx * dt
 		b.y = b.y + b.vy * dt

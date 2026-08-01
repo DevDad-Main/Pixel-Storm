@@ -73,7 +73,10 @@ function Weapons.fire(player, build, State, w)
 	w = w or Weapons.resolve(build)
 	local base = player.aim
 	for i = 1, w.count do
-		local offset = (i - 1) / math.max(1, w.count - 1) - 0.5
+		local offset = 0
+		if w.count > 1 then
+			offset = (i - 1) / (w.count - 1) - 0.5
+		end
 		local ang = base + offset * w.spread * 2 + (math.random() - 0.5) * 0.02
 		local bx = player.x + math.cos(ang) * 8
 		local by = player.y + math.sin(ang) * 8

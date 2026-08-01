@@ -20,7 +20,7 @@ function Draft.start(State)
 	}
 	State.scene = "draft"
 	-- small heal so the transition feels rewarding
-	State.player.hp = math.min(State.player.max_hp, State.player.hp + 15)
+	State.player.hp = math.min(State.player.max_hp, State.player.hp + 8)
 	-- clear stray frozen bullets for a clean frame.
 	Bullets.list = {}
 end

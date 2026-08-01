@@ -13,12 +13,17 @@ function Player.new()
 		r = 3,
 		hp = 100,
 		max_hp = 100,
+		base_max_hp = 100,
 		speed = 142,
 		fire_t = 0,
 		-- NOTE: now dynamic from the Build module
 		-- fire_rate = 0.13,
 		invuln_t = 0,
 		trail_t = 0,
+		dash_t = 0,
+		dash_cd = 0,
+		dash_ix = 0,
+		dash_iy = 0,
 		alive = true,
 		aim = 0,
 		shield = Shield.new(100, 3, 10, 25),
@@ -56,9 +61,47 @@ function Player.update(p, dt, State)
 		dy = dy / len
 	end
 
-	-- NOTE: Player movement updated to incorporate build stats
-	p.x = p.x + dx * p.speed * State.build.stats.move_speed * dt
-	p.y = p.y + dy * p.speed * State.build.stats.move_speed * dt
+	-- Dash: Shift bursts toward the input direction (aim if idle).
+	local DASH_SPEED = 1150
+	local DASH_TIME = 0.14
+	local DASH_CD = 1.1
+	p.dash_cd = math.max(0, p.dash_cd - dt)
+	if (input.key_pressed(input.KEY_LSHIFT) or input.key_pressed(input.KEY_RSHIFT)) and p.dash_cd <= 0 then
+		p.dash_cd = DASH_CD
+		p.dash_t = DASH_TIME
+		if len > 0 then
+			p.dash_ix, p.dash_iy = dx, dy
+		else
+			p.dash_ix, p.dash_iy = math.cos(p.aim), math.sin(p.aim)
+		end
+		p.invuln_t = math.max(p.invuln_t, 0.3)
+		Particles.burst(p.x, p.y, 8, 40, 0.3, gfx.COLOR_GREEN, 1)
+		effect.screen_shake(0.05, 1)
+	end
+
+	if p.dash_t > 0 then
+		p.dash_t = p.dash_t - dt
+		p.x = p.x + p.dash_ix * DASH_SPEED * dt
+		p.y = p.y + p.dash_iy * DASH_SPEED * dt
+		if p.trail_t <= 0 then
+			p.trail_t = 0.02
+			Particles.emit({
+				x = p.x,
+				y = p.y,
+				count = 1,
+				speed = 6,
+				life = 0.3,
+				color = gfx.COLOR_WHITE,
+				size = 2,
+				drag = 3,
+			})
+		end
+	else
+		p.x = p.x + dx * p.speed * State.build.stats.move_speed * dt
+		p.y = p.y + dy * p.speed * State.build.stats.move_speed * dt
+	end
+
+    -- NOTE: add dash ability here
 
 	-- Clamp to the WORLD bounds, not the screen.
 	p.x = util.clamp(p.x, p.r + 1, Camera.world_w - p.r - 1)

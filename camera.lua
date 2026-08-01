@@ -21,9 +21,12 @@ function Camera.update(State, dt)
 	-- Mouse look-ahead: drift the camera toward the cursor. The further the
 	-- cursor is from the screen center, the more the view leans that way.
 	local mx, my = input.mouse()
-	local max_look = 55 -- world px of total shift
-	local lx = util.clamp((mx - usagi.GAME_W / 2) / cam.zoom * 0.25, -max_look, max_look)
-	local ly = util.clamp((my - usagi.GAME_H / 2) / cam.zoom * 0.25, -max_look, max_look)
+	local lx, ly = 0, 0
+	if mx and my then
+		local max_look = 55 -- world px of total shift
+		lx = util.clamp((mx - usagi.GAME_W / 2) / cam.zoom * 0.25, -max_look, max_look)
+		ly = util.clamp((my - usagi.GAME_H / 2) / cam.zoom * 0.25, -max_look, max_look)
+	end
 
 	cam.x = util.lerp(cam.x, p.x + lx, t)
 	cam.y = util.lerp(cam.y, p.y + ly, t)
@@ -50,13 +53,18 @@ end
 -- center of the screen.
 function Camera.world_to_screen(x, y)
 	local cam = State.camera
-	return (x - cam.x) * cam.zoom + usagi.GAME_W / 2, (y - cam.y) * cam.zoom + usagi.GAME_H / 2
+	local cx = cam.x or 0
+	local cy = cam.y or 0
+	return ((x or cx) - cx) * cam.zoom + usagi.GAME_W / 2, ((y or cy) - cy) * cam.zoom + usagi.GAME_H / 2
 end
 
 -- Screen position (e.g. raw mouse coords) -> world position.
 function Camera.screen_to_world(x, y)
 	local cam = State.camera
-	return (x - usagi.GAME_W / 2) / cam.zoom + cam.x, (y - usagi.GAME_H / 2) / cam.zoom + cam.y
+	local cx = cam.x or 0
+	local cy = cam.y or 0
+	return ((x or usagi.GAME_W / 2) - usagi.GAME_W / 2) / cam.zoom + cx,
+		((y or usagi.GAME_H / 2) - usagi.GAME_H / 2) / cam.zoom + cy
 end
 
 -- Scale a world-space length/radius into screen-space pixels.

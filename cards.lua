@@ -8,58 +8,73 @@ Cards.POOL = {
 	{
 		id = "damage",
 		name = "Damage Up",
-		desc = "+25% damage",
+		desc = "+15% damage",
 		type = "stat",
 		rarity = "common",
 		color = gfx.COLOR_RED,
+		maxed = function(build)
+			return build.stats.damage >= 2
+		end,
 		apply = function(build)
-			build.stats.damage = build.stats.damage + 0.25
+			build.stats.damage = math.min(2, build.stats.damage + 0.15)
 		end,
 	},
 	{
 		id = "fire_rate",
 		name = "Rapid Fire",
-		desc = "+15% fire rate",
+		desc = "+10% fire rate",
 		type = "stat",
 		rarity = "common",
 		color = gfx.COLOR_YELLOW,
+		maxed = function(build)
+			return build.stats.fire_rate >= 2
+		end,
 		apply = function(build)
-			build.stats.fire_rate = build.stats.fire_rate + 0.15
+			build.stats.fire_rate = math.min(2, build.stats.fire_rate + 0.1)
 		end,
 	},
 	{
 		id = "bullet_speed",
 		name = "Velocity",
-		desc = "+30% bullet speed",
+		desc = "+18% bullet speed",
 		type = "stat",
 		rarity = "common",
 		color = gfx.COLOR_LIGHT_GRAY,
+		maxed = function(build)
+			return build.stats.bullet_speed >= 2
+		end,
 		apply = function(build)
-			build.stats.bullet_speed = build.stats.bullet_speed + 0.3
+			build.stats.bullet_speed = math.min(2, build.stats.bullet_speed + 0.18)
 		end,
 	},
 	{
 		id = "move_speed",
 		name = "Adrenaline",
-		desc = "+20% move speed",
+		desc = "+12% move speed",
 		type = "stat",
 		rarity = "common",
 		color = gfx.COLOR_GREEN,
+		maxed = function(build)
+			return build.stats.move_speed >= 2
+		end,
 		apply = function(build)
-			build.stats.move_speed = build.stats.move_speed + 0.2
+			build.stats.move_speed = math.min(2, build.stats.move_speed + 0.12)
 		end,
 	},
 	{
 		id = "max_hp",
 		name = "Vitality",
-		desc = "+25 max HP, heal",
+		desc = "+15 max HP, heal",
 		type = "stat",
 		rarity = "common",
 		color = gfx.COLOR_RED,
+		maxed = function(build)
+			return build.stats.max_hp >= 75
+		end,
 		apply = function(build, State)
-			build.stats.max_hp = build.stats.max_hp + 25
-			State.player.max_hp = State.player.max_hp + 25
-			State.player.hp = math.min(State.player.max_hp, State.player.hp + 25)
+			build.stats.max_hp = math.min(75, build.stats.max_hp + 15)
+			State.player.max_hp = math.min(State.player.base_max_hp + 75, State.player.max_hp + 15)
+			State.player.hp = math.min(State.player.max_hp, State.player.hp + 15)
 		end,
 	},
 	{
@@ -69,8 +84,11 @@ Cards.POOL = {
 		type = "stat",
 		rarity = "rare",
 		color = gfx.COLOR_ORANGE,
+		maxed = function(build)
+			return build.stats.bullet_count >= 3
+		end,
 		apply = function(build)
-			build.stats.bullet_count = build.stats.bullet_count + 1
+			build.stats.bullet_count = math.min(3, build.stats.bullet_count + 1)
 		end,
 	},
 	{
@@ -80,19 +98,25 @@ Cards.POOL = {
 		type = "stat",
 		rarity = "rare",
 		color = gfx.COLOR_PINK,
+		maxed = function(build)
+			return build.stats.pierce >= 3
+		end,
 		apply = function(build)
-			build.stats.pierce = build.stats.pierce + 1
+			build.stats.pierce = math.min(3, build.stats.pierce + 1)
 		end,
 	},
 	{
 		id = "ult_gain",
 		name = "Focus",
-		desc = "+30% ult charge",
+		desc = "+20% ult charge",
 		type = "stat",
 		rarity = "rare",
 		color = gfx.COLOR_BLUE,
+		maxed = function(build)
+			return build.stats.ult_gain >= 2
+		end,
 		apply = function(build)
-			build.stats.ult_gain = build.stats.ult_gain + 0.3
+			build.stats.ult_gain = math.min(2, build.stats.ult_gain + 0.2)
 		end,
 	},
 
@@ -151,11 +175,11 @@ Cards.POOL = {
 
 local RARITY_WEIGHT = { common = 60, rare = 30, epic = 10 }
 
--- Drop cards that can't be taken (weapons you already own).
+-- Drop cards that can't be taken (owned weapons, maxed-out stats).
 function Cards.available(build)
 	local out = {}
 	for _, card in ipairs(Cards.POOL) do
-		local skip = card.weapon and Build.has_weapon(build, card.weapon)
+		local skip = (card.weapon and Build.has_weapon(build, card.weapon)) or (card.maxed and card.maxed(build))
 		if not skip then
 			table.insert(out, card)
 		end
