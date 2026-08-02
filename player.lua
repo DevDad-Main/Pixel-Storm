@@ -1,197 +1,693 @@
-local Particles = require("particles")
-local Shield = require("shield")
-local Camera = require("camera")
-local World = require("world")
-local Weapons = require("weapons")
+Player = Object:extend()
+Player:implement(GameObject)
+Player:implement(Physics)
+Player:implement(Unit)
+-- Ship functionality is composed, not inherited
 
-local Player = {}
+function Player:init(args)
+	self:init_game_object(args)
+	self:init_unit()
 
-function Player.new()
-	return {
-		x = Camera.world_w / 2,
-		y = Camera.world_h / 2,
-		r = 3,
-		hp = 100,
-		max_hp = 100,
-		base_max_hp = 100,
-		speed = 142,
-		fire_t = 0,
-		-- NOTE: now dynamic from the Build module
-		-- fire_rate = 0.13,
-		invuln_t = 0,
-		trail_t = 0,
-		dash_t = 0,
-		dash_cd = 0,
-		dash_ix = 0,
-		dash_iy = 0,
-		alive = true,
-		aim = 0,
-		shield = Shield.new(100, 3, 10, 25),
+	-- Initialize ship system
+	self.ship_system = ShipSystem(self)
+
+	-- Initialize follower system for visual trailing effect (but simplified for ship)
+	self.followers = {}
+	self.previous_positions = {}
+
+	if self.passives then
+		for k, v in pairs(self.passives) do
+			self[v.passive] = v.level
+		end
+	end
+
+	self.color = character_colors[self.character]
+	self:set_as_rectangle(12, 12, "dynamic", "player") -- Larger ship hitbox
+	self.visual_shape = "rectangle"
+	self.classes = character_classes[self.character]
+	self.damage_dealt = 0
+
+	-- Initialize with starting modules
+	self:initialize_starter_ship()
+
+	self:calculate_stats(true)
+
+	-- Track previous positions for follower effect and trail
+	self.t:every(0.01, function()
+		table.insert(self.previous_positions, 1, { x = self.x, y = self.y, r = self.r })
+		if #self.previous_positions > 50 then -- Shorter trail for ship aesthetic
+			self.previous_positions[51] = nil
+		end
+	end)
+
+	-- Ability cooldown tracking
+	self.ability_timers = {}
+end
+
+-- Initialize the ship with starting equipment
+function Player:initialize_starter_ship()
+	-- Require modules locally to avoid circular dependencies
+	local modules = require("modules")
+
+	-- Add starter equipment
+	self.ship_system:add_module(modules.LaserCannon())
+	self.ship_system:add_module(modules.IonThruster())
+	self.ship_system:add_module(modules.ReactorCore())
+	self.ship_system:add_module(modules.ShieldGenerator())
+	self.ship_system:set_ammo_type("physical")
+end
+
+-- Add a module to the ship
+function Player:add_module(module_name)
+	local modules = require("modules")
+	local module_class = modules[module_name]
+	if module_class then
+		local module = module_class()
+		self.ship_system:add_module(module)
+		return true
+	end
+	return false
+end
+
+-- Remove a module from the ship
+function Player:remove_module(module_name)
+	-- Find module by name in ship system
+	for i, module in ipairs(self.ship_system.modules) do
+		if module.name == module_name then
+			self.ship_system:remove_module(module)
+			return true
+		end
+	end
+	return false
+end
+
+-- Set ammo type
+function Player:set_ammo_type(ammo_type)
+	return self.ship_system:set_ammo_type(ammo_type)
+end
+
+-- Use ship ability
+function Player:use_ability(ability_name)
+	return self.ship_system:use_ability(ability_name)
+end
+
+-- Update ship systems
+function Player:update_ship_systems(dt)
+	self.ship_system:update_abilities(dt)
+end
+
+-- Calculate final stats based on ship system
+-- Calculate final stats based on ship system
+function Player:calculate_stats(recalc)
+	-- Get stats from ship system safely
+	self.max_hp = self.ship_system:get_stat("hp") or 100
+	self.dmg = self.ship_system:get_stat("dmg") or 10
+	self.aspd_m = self.ship_system:get_stat("aspd") or 1
+	self.area_dmg_m = self.ship_system:get_stat("area_dmg") or 1
+	self.area_size_m = self.ship_system:get_stat("area_size") or 1
+	self.def = self.ship_system:get_stat("defense") or 0
+	self.v = self.ship_system:get_stat("move_speed") or 100
+
+	-- Apply character/class bonuses
+	self:apply_character_stats(recalc)
+
+	-- Initialize HP if it doesn't exist yet
+	if not self.hp then
+		self.hp = self.max_hp
+	end
+
+	-- Keep current HP inside max HP
+	if recalc then
+		self.hp = math.min(self.hp, self.max_hp)
+	end
+end
+
+-- Apply character class stat multipliers
+-- function Player:apply_character_stats()
+-- 	local multiplier = { hp = 1, dmg = 1, aspd = 1, area_dmg = 1, area_size = 1, defense = 0, move_speed = 1 }
+
+-- 	if self.classes then
+-- 		for _, class in ipairs(self.classes) do
+-- 			if class.stat_multipliers[class] then
+-- 				for stat, value in pairs(class.stat_multipliers[class]) do
+-- 					multiplier[stat] = multiplier[stat] * value
+-- 				end
+-- 			end
+-- 		end
+-- 	end
+
+-- 	self.max_hp = self.max_hp * multiplier.hp
+-- 	self.dmg = self.dmg * multiplier.dmg
+-- 	self.aspd_m = self.aspd_m * multiplier.aspd
+-- 	self.area_dmg_m = self.area_dmg_m * multiplier.area_dmg
+-- 	self.area_size_m = self.area_size_m * multiplier.area_size
+-- 	self.def = self.def + multiplier.defense
+-- 	self.v = self.v * multiplier.move_speed
+
+-- 	if recalc then
+-- 		self.hp = math.min(self.hp, self.max_hp)
+-- 	end
+-- end
+
+-- Apply character class stat multipliers
+function Player:apply_character_stats(recalc)
+	local multiplier = {
+		hp = 1,
+		dmg = 1,
+		aspd = 1,
+		area_dmg = 1,
+		area_size = 1,
+		defense = 0,
+		move_speed = 1,
 	}
+
+	-- Apply class bonuses safely
+	if self.classes then
+		for _, class in ipairs(self.classes) do
+			-- Some classes are strings/tables depending on SNKRX data
+			if type(class) == "table" then
+				local stats = class.stat_multipliers
+
+				if stats then
+					for stat, value in pairs(stats) do
+						if multiplier[stat] then
+							multiplier[stat] = multiplier[stat] * value
+						end
+					end
+				end
+			end
+		end
+	end
+
+	-- Apply final multipliers
+	self.max_hp = self.max_hp * multiplier.hp
+	self.dmg = self.dmg * multiplier.dmg
+	self.aspd_m = self.aspd_m * multiplier.aspd
+	self.area_dmg_m = self.area_dmg_m * multiplier.area_dmg
+	self.area_size_m = self.area_size_m * multiplier.area_size
+	self.def = self.def + multiplier.defense
+	self.v = self.v * multiplier.move_speed
+
+	-- Keep HP valid after recalculation
+	if recalc and self.hp then
+		self.hp = math.min(self.hp, self.max_hp)
+	end
 end
 
-function Player.update(p, dt, State)
-	if not p.alive then
-		return
-	end
-	p.fire_t = p.fire_t - dt
-	p.invuln_t = p.invuln_t - dt
-	p.trail_t = p.trail_t - dt
+function Player:update(dt)
+	self:update_game_object(dt)
+	self:update_unit(dt)
 
-	-- NOTE: Shield update
-	Shield.update(p.shield, dt)
+	-- Update ship systems
+	self:update_ship_systems(dt)
 
-	local dx = 0
-	local dy = 0
-	if input.held(input.LEFT) then
-		dx = dx - 1
-	end
-	if input.held(input.RIGHT) then
-		dx = dx + 1
-	end
-	if input.held(input.UP) then
-		dy = dy - 1
-	end
-	if input.held(input.DOWN) then
-		dy = dy + 1
-	end
-	local len = math.sqrt(dx * dx + dy * dy)
-	if len > 0 then
-		dx = dx / len
-		dy = dy / len
-	end
+	-- Update ability cooldowns from passive abilities
+	self:update_passive_ability_cooldowns(dt)
 
-	-- Dash: Shift bursts toward the input direction (aim if idle).
-	local DASH_SPEED = 1150
-	local DASH_TIME = 0.14
-	local DASH_CD = 1.1
-	p.dash_cd = math.max(0, p.dash_cd - dt)
-	if (input.key_pressed(input.KEY_LSHIFT) or input.key_pressed(input.KEY_RSHIFT)) and p.dash_cd <= 0 then
-		p.dash_cd = DASH_CD
-		p.dash_t = DASH_TIME
-		if len > 0 then
-			p.dash_ix, p.dash_iy = dx, dy
-		else
-			p.dash_ix, p.dash_iy = math.cos(p.aim), math.sin(p.aim)
-		end
-		p.invuln_t = math.max(p.invuln_t, 0.3)
-		Particles.burst(p.x, p.y, 8, 40, 0.3, gfx.COLOR_GREEN, 1)
-		effect.screen_shake(0.05, 1)
-	end
-
-	if p.dash_t > 0 then
-		p.dash_t = p.dash_t - dt
-		p.x = p.x + p.dash_ix * DASH_SPEED * dt
-		p.y = p.y + p.dash_iy * DASH_SPEED * dt
-		if p.trail_t <= 0 then
-			p.trail_t = 0.02
-			Particles.emit({
-				x = p.x,
-				y = p.y,
-				count = 1,
-				speed = 6,
-				life = 0.3,
-				color = gfx.COLOR_WHITE,
-				size = 2,
-				drag = 3,
-			})
-		end
+	-- Handle ship movement and positioning
+	if self.leader then
+		self:update_ship_leader(dt)
 	else
-		p.x = p.x + dx * p.speed * State.build.stats.move_speed * dt
-		p.y = p.y + dy * p.speed * State.build.stats.move_speed * dt
+		self:update_ship_follower(dt)
 	end
 
-    -- NOTE: add dash ability here
+	-- Update attack sensors
+	self:update_attack_sensors()
 
-	-- Clamp to the WORLD bounds, not the screen.
-	p.x = util.clamp(p.x, p.r + 1, Camera.world_w - p.r - 1)
-	p.y = util.clamp(p.y, p.r + 1, Camera.world_h - p.r - 1)
+	-- Recalculate stats (for dynamic modifiers)
+	self:calculate_stats()
 
-	-- Planets are solid; slide along their surface.
-	p.x, p.y = World.resolve(p.x, p.y, p.r)
-
-	-- Mouse is in screen space; convert to world so aim matches the shot.
-	local mx, my = input.mouse()
-	mx, my = Camera.screen_to_world(mx, my)
-	p.aim = math.atan(my - p.y, mx - p.x)
-
-	if (dx ~= 0 or dy ~= 0) and p.trail_t <= 0 then
-		p.trail_t = 0.04
-		Particles.emit({
-			x = p.x,
-			y = p.y,
-			count = 1,
-			speed = 4,
-			life = 0.35,
-			color = gfx.COLOR_GREEN,
-			size = 1,
-			drag = 2,
-		})
+	-- Update attack sensors position
+	if self.attack_sensor then
+		self.attack_sensor:move_to(self.x, self.y)
+	end
+	if self.wide_attack_sensor then
+		self.wide_attack_sensor:move_to(self.x, self.y)
+	end
+	if self.gun_kata_sensor then
+		self.gun_kata_sensor:move_to(self.x, self.y)
 	end
 
-	local w = Weapons.resolve(State.build)
-	if input.mouse_held(input.MOUSE_LEFT) and p.fire_t <= 0 then
-		p.fire_t = w.fire_rate
-		Weapons.fire(p, State.build, State, w)
-	end
-
-	-- NOTE: Old firing logic, hard coded
-	-- if input.mouse_held(input.MOUSE_LEFT) and p.fire_t <= 0 then
-	-- 	p.fire_t = p.fire_rate
-	-- 	State.shoot(p)
-	-- end
-end
-
-function Player.hit(p, dmg, State)
-	if p.invuln_t > 0 or not p.alive then
-		return
-	end
-
-	p.hp = p.hp - dmg
-	p.invuln_t = 0.8
-	effect.flash(0.25, gfx.COLOR_RED)
-	effect.screen_shake(0.2, 3)
-	Particles.burst(p.x, p.y, 14, 60, 0.5, gfx.COLOR_RED, 1)
-	if p.hp <= 0 then
-		p.hp = 0
-		p.alive = false
-		effect.screen_shake(0.4, 6)
-		effect.flash(0.35, gfx.COLOR_RED)
-		Particles.burst(p.x, p.y, 40, 90, 0.9, gfx.COLOR_WHITE, 1)
-		Particles.burst(p.x, p.y, 30, 70, 0.7, gfx.COLOR_GREEN, 1)
-		Particles.emit({ x = p.x, y = p.y, count = 1, speed = 30, life = 0.5, color = gfx.COLOR_YELLOW, size = 6 })
-		State.player_died()
+	-- Shooting with mouse click
+	if input.m1 and input.m1.down then
+		self:shoot(dt)
 	end
 end
 
-function Player.draw(p)
-	if not p.alive then
-		return
-	end
-	if p.invuln_t > 0 and util.flash(usagi.elapsed, 16) then
-		return
-	end
-	local x, y = Camera.world_to_screen(p.x, p.y)
-	x = util.round(x)
-	y = util.round(y)
-	local barrel = util.round(Camera.scale(6))
-	local body = util.round(Camera.scale(3))
-	local wing = util.round(Camera.scale(3))
-
-	local bx = x + util.round(math.cos(p.aim) * barrel)
-	local by = y + util.round(math.sin(p.aim) * barrel)
-	gfx.line_ex(x, y, bx, by, 2, gfx.COLOR_LIGHT_GRAY)
-	gfx.circ_fill(x, y, body, gfx.COLOR_GREEN)
-	gfx.px(x, y, gfx.COLOR_WHITE)
-	local wx = util.round(math.cos(p.aim + math.pi / 2) * wing)
-	local wy = util.round(math.sin(p.aim + math.pi / 2) * wing)
-	gfx.px(x + wx, y + wy, gfx.COLOR_DARK_GREEN)
-	gfx.px(x - wx, y - wy, gfx.COLOR_DARK_GREEN)
-
-	-- NOTE: draw shield
-	if p.shield and p.shield.active then
-		gfx.circ(x, y, util.round(Camera.scale(p.shield.radius)), gfx.COLOR_TRUE_WHITE)
+-- Update ability cooldowns from passive abilities
+function Player:update_passive_ability_cooldowns(dt)
+	-- Update cooldown timers for abilities
+	for ability, timer in pairs(self.ability_timers) do
+		if timer > 0 then
+			self.ability_timers[ability] = timer - dt
+		end
 	end
 end
 
-return Player
+-- Fire projectile in the direction the ship is facing
+function Player:shoot(dt)
+	-- Initialize shoot timer if not exists
+	self.shoot_timer = self.shoot_timer or 0
+	
+	-- Decrease timer
+	if self.shoot_timer > 0 then
+		self.shoot_timer = self.shoot_timer - dt
+		return
+	end
+	
+	-- Set cooldown based on attack speed (aspd_m is the attack speed multiplier)
+	-- Base cooldown of 0.2 seconds, modified by attack speed
+	local base_cooldown = 0.2
+	self.shoot_timer = base_cooldown * (self.aspd_m or 1)
+	
+	-- Create a projectile from the ship's position, pointing in the ship's direction
+	local projectile_speed = 400
+	local projectile_damage = self.dmg
+	Projectile({
+		group = main.current.main,
+		x = self.x,
+		y = self.y,
+		color = self.color,
+		r = self.r,
+		v = projectile_speed,
+		dmg = projectile_damage,
+		parent = self,
+	})
+end
+
+-- Update leader ship movement
+function Player:update_ship_leader(dt)
+	-- Ship movement based on WASD input
+	local move_speed = self.v
+	local vx, vy = 0, 0
+
+	-- WASD movement controls
+	if input.move_left and input.move_left.down then
+		vx = vx - 1
+	end
+	if input.move_right and input.move_right.down then
+		vx = vx + 1
+	end
+	if input.move_up and input.move_up.down then
+		vy = vy - 1
+	end
+	if input.move_down and input.move_down.down then
+		vy = vy + 1
+	end
+
+	-- Normalize diagonal movement to prevent faster diagonal movement
+	if vx ~= 0 and vy ~= 0 then
+		local length = math.sqrt(vx * vx + vy * vy)
+		vx = vx / length
+		vy = vy / length
+	end
+
+	-- Apply velocity
+	self:set_velocity(vx * move_speed, vy * move_speed)
+
+	-- Normalize diagonal movement to prevent faster diagonal movement
+	if vx ~= 0 and vy ~= 0 then
+		local length = math.sqrt(vx * vx + vy * vy)
+		vx = vx / length
+		vy = vy / length
+	end
+
+	-- Apply velocity
+	self:set_velocity(vx * move_speed, vy * move_speed)
+
+	-- Rotate to face mouse cursor (aiming)
+	if not state.mouse_control then
+		-- Point the ship toward the mouse cursor (instant snap for responsive feel)
+		local target_angle = self:angle_to_mouse()
+		self.r = target_angle
+	else
+		-- Original mouse control behavior (backup)
+		self.mouse_control_v = Vector(math.cos(self.r), math.sin(self.r))
+			:perpendicular()
+			:dot(Vector(math.cos(self:angle_to_mouse()), math.sin(self:angle_to_mouse())))
+		if not main.current.won and not main.current.choosing_passives then
+			if not state.no_screen_movement then
+				local vx, vy = self:get_velocity()
+				local hd = math.remap(math.abs(self.x - gw / 2), 0, 192, 1, 0)
+				local vd = math.remap(math.abs(self.y - gh / 2), 0, 108, 1, 0)
+				camera.x = camera.x + math.remap(vx, -100, 100, -24 * hd, 24 * hd) * dt
+				camera.y = camera.y + math.remap(vy, -100, 100, -8 * vd, 8 * vd) * dt
+
+				-- Screen rotation
+				if input.move_right.down then
+					camera.r = math.lerp_angle_dt(0.01, dt, camera.r, math.pi / 256)
+				elseif input.move_left.down then
+					camera.r = math.lerp_angle_dt(0.01, dt, camera.r, -math.pi / 256)
+				else
+					camera.r = math.lerp_angle_dt(0.005, dt, camera.r, 0)
+				end
+			end
+		end
+
+		self:set_angle(self.r)
+	end
+
+	-- Update follower ship positioning
+	function Player:update_ship_follower(dt)
+		-- Follower ships follow the leader's path with spacing
+		local target_distance = 16.0 * (self.follower_index or 0) -- Ship spacing
+		local distance_sum = 0
+		local target_pos = nil
+
+		-- Find position in leader's path history
+		for i, point in ipairs(self.parent and self.parent.previous_positions or self.previous_positions) do
+			if i == 1 then
+				-- Distance from current position to first point in history
+				local dist_to_point = math.distance(self.x, self.y, point.x, point.y)
+				distance_sum = distance_sum + dist_to_point
+			else
+				-- Distance between consecutive points in history
+				local dist_between = math.distance(
+					self.parent and self.parent.previous_positions[i - 1] or self.previous_positions[i - 1],
+					point.x,
+					point.y
+				)
+				distance_sum = distance_sum + dist_between
+			end
+
+			if distance_sum >= target_distance then
+				target_pos = point
+				break
+			end
+		end
+
+		if target_pos then
+			self:set_position(target_pos.x, target_pos.y)
+			self.r = target_pos.r
+
+			-- Visual effect when starting to follow
+			if not self.following then
+				spawn1:play({ pitch = random:float(0.8, 1.2), volume = 0.15 })
+				for i = 1, random:int(2, 3) do
+					HitParticle({ group = main.current.effects, x = self.x, y = self.y, color = self.color })
+				end
+				HitCircle({ group = main.current.effects, x = self.x, y = self.y, rs = 8, color = fg[0] })
+					:scale_down(0.3)
+					:change_color(0.5, self.color)
+				self.following = true
+			end
+		else
+			-- If no target position found, face direction of movement
+			if self.leader then
+				self.r = self:get_angle()
+			else
+				-- Followers should face the same direction as leader when not positioned
+				local leader_angle = self.parent and self.parent.r or 0
+				self.r = leader_angle
+			end
+		end
+	end
+
+	-- Update attack sensors based on equipped weapons
+	function Player:update_attack_sensors()
+		local base_range = 96 -- Base attack range
+
+		-- Modify range based on equipped weapons
+		local range_mod = 1.0
+		for _, module in ipairs(self.ship_system.modules) do
+			if module.attack_range_mod then
+				range_mod = range_mod * module.attack_range_mod
+			end
+		end
+
+		local final_range = base_range * range_mod
+
+		self.attack_sensor = Circle(self.x, self.y, final_range)
+		self.wide_attack_sensor = Circle(self.x, self.y, final_range * 1.3)
+		self.gun_kata_sensor = Circle(self.x, self.y, final_range * 0.8)
+	end
+
+	function Player:draw()
+		graphics.push(self.x, self.y, self.r, self.hfx.hit.x * self.hfx.shoot.x, self.hfx.hit.x * self.hfx.shoot.x)
+		if self.visual_shape == "rectangle" then
+			if self.magician_invulnerable then
+				graphics.rectangle(self.x, self.y, self.shape.w, self.shape.h, 3, 3, blue_transparent)
+			elseif self.undead then
+				graphics.rectangle(self.x, self.y, self.shape.w, self.shape.h, 3, 3, self.color, 1)
+			else
+				graphics.rectangle(
+					self.x,
+					self.y,
+					self.shape.w,
+					self.shape.h,
+					3,
+					3,
+					(self.hfx.hit.f or self.hfx.shoot.f) and fg[0] or self.color
+				)
+			end
+		end
+
+		-- Draw ship orientation indicator (more ship-like than snake arrows)
+		if self.leader then
+			-- Draw ship nose indicator
+			local nose_length = self.shape.w * 0.6
+			local nose_x = self.x + nose_length * math.cos(self.r)
+			local nose_y = self.y + nose_length * math.sin(self.r)
+			graphics.line(self.x, self.y, nose_x, nose_y, fg[0], 2)
+
+			-- Draw wings
+			local wing_length = self.shape.w * 0.4
+			local wing_angle = math.pi / 6 -- 30 degrees
+			local left_wing_x = self.x + wing_length * math.cos(self.r + wing_angle)
+			local left_wing_y = self.y + wing_length * math.sin(self.r + wing_angle)
+			local right_wing_x = self.x + wing_length * math.cos(self.r - wing_angle)
+			local right_wing_y = self.y + wing_length * math.sin(self.r - wing_angle)
+			graphics.line(self.x, self.y, left_wing_x, left_wing_y, character_colors[self.character], 1)
+			graphics.line(self.x, self.y, right_wing_x, right_wing_y, character_colors[self.character], 1)
+		end
+
+		graphics.pop()
+	end
+
+	-- Copy over essential methods from original player.lua for compatibility
+	function Player:on_collision_enter(other, contact)
+		local x, y = contact:getPositions()
+
+		if other:is(Wall) then
+			if self.leader then
+				if other.snkrx then
+					main.current.level_1000_text:pull(0.2, 200, 10)
+				end
+				self.hfx:use("hit", 0.5, 200, 10, 0.1)
+				camera:spring_shake(2, math.pi - self.r)
+				self:bounce(contact:getNormal())
+				local r = random:float(0.9, 1.1)
+				player_hit_wall1:play({ pitch = r, volume = 0.1 })
+				pop1:play({ pitch = r, volume = 0.2 })
+
+				for i, f in ipairs(self.followers) do
+					trigger:after(i * (10.6 / self.v), function()
+						f.hfx:use("hit", 0.5, 200, 10, 0.1)
+						player_hit_wall1:play({ pitch = r + 0.025 * i, volume = 0.1 })
+						pop1:play({ pitch = r + 0.05 * i, volume = 0.2 })
+					end)
+				end
+
+				if self.wall_echo then
+					if random:bool(34) then
+						local target =
+							self:get_closest_object_in_shape(Circle(self.x, self.y, 96), main.current.enemies)
+						if target then
+							self:barrage(self:angle_to_object(target), 2)
+						else
+							local r = Vector(contact:getNormal()):angle()
+							self:barrage(r, 2)
+						end
+					end
+				end
+			end
+
+			if self.wall_rider then
+				self.wall_rider_t = 0
+				self.wall_rider_r = 0
+				self:set_damping(0)
+				self.wall_rider_v = 300
+				self.t:every(0.05, function()
+					self.wall_rider_t = self.wall_rider_t + 0.05
+					if self.wall_rider_t >= 1 then
+						self.t:cancel("wall_rider")
+						self.wall_rider_t = nil
+						self.wall_rider_v = nil
+					end
+					self:set_velocity(
+						self.wall_rider_v * math.cos(self.wall_rider_r),
+						self.wall_rider_v * math.sin(self.wall_rider_r)
+					)
+				end, nil, nil, "wall_rider")
+				self:set_angular_damping(0)
+				self.wall_rider_r =
+					self:angle_to_point(self.x - contact:getNormal().x * 16, self.y - contact:getNormal().y * 16)
+			end
+		end
+
+		if other.solid then
+			self.hfx:use("hit", 0.15, 200, 0.1)
+			self:bounce(contact:getNormal())
+			if self.juggernaut_push then
+				self:hit(self.juggernaut_push)
+				hit2:play({ pitch = random:float(0.95, 1.05), volume = 0.35 })
+			end
+
+			if self.launcher_push then
+				self:hit(self.launcher_push)
+				hit2:play({ pitch = random:float(0.95, 1.05), volume = 0.35 })
+			end
+
+			if main.current.player.heavy_impact then
+				if self.being_pushed then
+					self:hit(self.push_force, nil, nil, true)
+				end
+			end
+
+			if main.current.player.tremor then
+				if self.being_pushed then
+					camera:shake(2, 0.5)
+					earth1:play({ pitch = random:float(0.95, 1.05), volume = 0.5 })
+					Area({
+						group = main.current.effects,
+						x = self.x,
+						y = self.y,
+						r = self.r,
+						w = 0.75 * self.push_force * (main.current.player.area_size_m or 1),
+						color = yellow[0],
+						dmg = self.push_force / 2,
+						parent = main.current.player,
+					})
+				end
+			end
+
+			if main.current.player.fracture then
+				if self.being_pushed then
+					self:hit(self.push_force, nil, nil, true)
+					for i = 1, n do
+						local enemy_projectile = EnemyProjectile({
+							group = main.current.main,
+							x = self.x,
+							y = self.y,
+							color = self.color,
+							dmg = self.dmg,
+						})
+						self:hit(self.push_force, nil, nil, true)
+					end
+				end
+				if other:is(WallCover) then
+					if other.half then
+						if self:distance_to_object(other) < other.half then
+							self:bounce(contact:getNormal())
+						end
+					else
+						self:bounce(contact:getNormal())
+					end
+				end
+			end
+
+			if other:is(Seeker) then
+				self.hfx:use("hit", 0.15, 200, 0.1)
+				self:bounce(contact:getNormal())
+				if self.following then
+					self.following = false
+				end
+
+				if self.barbarian_stunned then
+					hit2:play({ pitch = random:float(0.95, 1.05), volume = 0.35 })
+					self:hit(self.push_force)
+				end
+
+				if self.magnetism then
+					if other:is(Player) or other:is(Seeker) then
+						local force = math.remap(self:distance_to_object(other), 0, 256, 300, 0)
+						self:apply_steering_force(force, self:angle_to_object(other))
+					end
+				end
+
+				if other:is(Player) then
+					if other.leader then
+						other:snake_hit(self)
+					else
+						other.parent:snake_hit(other)
+					end
+				end
+
+				if self:is(Player) and self.leader then
+					self:snake_hit(other)
+				end
+
+				--        if self:homing then
+				--            self:snap_to_object(other, 0.15)
+				--        end
+			end
+		end
+
+		-- Helper methods for finding closest objects (copied from original)
+		function Player:get_closest_object_in_shape(shape, object_list)
+			if not object_list or #object_list == 0 then
+				return nil
+			end
+
+			local closest_object = nil
+			local closest_distance = math.huge
+
+			for _, object in ipairs(object_list) do
+				if shape:test_point(object.x, object.y) then
+					local distance = self:distance_to_object(object)
+					if distance < closest_distance then
+						closest_distance = distance
+						closest_object = object
+					end
+				end
+			end
+
+			return closest_object
+		end
+
+		function Player:get_random_object_in_shape(shape, object_list)
+			local objects_in_shape = {}
+
+			for _, object in ipairs(object_list) do
+				if shape:test_point(object.x, object.y) then
+					table.insert(objects_in_shape, object)
+				end
+			end
+
+			if #objects_in_shape > 0 then
+				return objects_in_shape[math.random(#objects_in_shape)]
+			end
+
+			return nil
+		end
+
+		-- Ship-specific helper methods
+		function Player:angle_to_mouse()
+			local mx, my = love.mouse.getPosition()
+			local wx, wy = camera:get_world_coords(mx, my)
+			return math.angle(self.x, self.y, wx, wy)
+		end
+
+		function Player:snake_hit(other)
+			-- Simplified snake hit for ship collisions
+			if other:is(Seeker) then
+				other:hit(self.dmg)
+			end
+		end
+
+		function Player:apply_effect(effect_type, duration)
+			-- Apply temporary effects (stun, slow, etc.)
+			if effect_type == "stun" then
+				self.stunned = true
+				self.t:after(duration, function()
+					self.stunned = false
+				end)
+			elseif effect_type == "slow" then
+				self.slowed = true
+				self.t:after(duration, function()
+					self.slowed = false
+				end)
+			end
+		end
+	end
+end

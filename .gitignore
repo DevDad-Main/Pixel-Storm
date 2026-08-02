@@ -1,6 +1,2 @@
-export/
-
-# editor swap / backup files
-#*#
-*~
-*.swp
+steam/
+builds/
